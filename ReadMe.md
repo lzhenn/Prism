@@ -1,6 +1,6 @@
 
 # Prism 
-![]()
+![](https://raw.githubusercontent.com/Novarizark/Prism/master/prism.jpg)
 
 Prism is a SOM-based classifier to classify weather types according to regional large-scale signals extracted from wrfout.
 
