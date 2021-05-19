@@ -54,3 +54,27 @@ def link_path(cfg):
         except:
             write_log('wrfout_d01_'+yyyy+'-'+mm+'-'+dd+'_12:00:00 not found',30)
 
+def link_realtime(cfg):
+    """ link realtime wrfout to input dir """
+    today=datetime.datetime.now()
+    while 1:
+        yyyy=today.strftime('%Y')
+        mm=today.strftime('%m')
+        dd=today.strftime('%d')
+        src_wrfpath=cfg['OTHER']['src_wrf']+yyyy
+        src_wrfpath=src_wrfpath+'/'+yyyy+mm+'/'+yyyy+mm+dd+'12'
+        # test if file exist
+        if os.path.exists(src_wrfpath):
+            os.system('rm -f  ./input/inference/*')
+            os.system('ln -sf '+src_wrfpath+'/wrfout_d01* ./input/inference/')
+            write_log(src_wrfpath+' has been successfully linked!')
+            break
+        else:
+            write_log(src_wrfpath+' not found, try 1 day before',30)
+            today=today-datetime.timedelta(days=1)
+
+def get_std_dim0(data):
+    """ standardize the series on the 0 dim """
+    data=(data-data.mean(axis=0))/data.std(axis=0)
+    return data
+

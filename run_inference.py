@@ -1,6 +1,6 @@
 #!/home/metctm1/array/soft/anaconda3/bin/python
 '''
-Date: May 05, 2021
+Date: May 17, 2021
 Prism is a SOM-based classifier to classify weather types 
 according to regional large-scale weather charts obtained
 from WRFOUT.
@@ -9,6 +9,7 @@ This is the main script to drive the model
 
 Revision:
 May 05, 2021 --- Architecture Design 
+May 19, 2021 --- Implementation
 
 Zhenning LI
 '''
@@ -36,34 +37,14 @@ def main_run():
     utils.write_log('Read Config...')
     cfg_hdl=lib.cfgparser.read_cfg('./conf/config.ini')
 
-    utils.write_log('Read Input Observations...')
-
-    if cfg_hdl['CORE'].getboolean('model_rebuild_flag'):
-        pass
-    
-    if cfg_hdl['CORE'].getboolean('model_infer_flag'):
-        pass
-    
+    if cfg_hdl['OTHER'].getboolean('relink_realtimewrf'):
+        utils.write_log('Relink realtime pathwrf...')
+        utils.link_realtime(cfg_hdl)
+    wrf_hdl=lib.preprocess_wrfinp.wrf_mesh(cfg_hdl, 'inference') 
+    prism=core.prism.prism (wrf_hdl,cfg_hdl)
+    prism.cast() 
     print('*********************PRISM ACCOMPLISHED*********************')
 
-
-
-def run_mtsk(itsk, obv_lst, clock, estimator, fields_hdl, cfg_hdl):
-    """
-    Aeolus cast function for multiple processors
-    """
-    utils.write_log('TASK[%02d]: Aeolus Interpolating Estimator Casting...' % itsk)
-    while not(clock.done):
-           
-        estimator.cast(obv_lst, fields_hdl, clock)
-
-        utils.write_log('TASK[%02d]: Output Diagnostic UVW Fields...' % itsk )
-        core.aeolus.output_fields(cfg_hdl, estimator, clock)
-        
-        clock.advance()
-    utils.write_log('TASK[%02d]: Aeolus Subprocessing Finished!' % itsk)
-    
-    return 0
 
 if __name__=='__main__':
     main_run()

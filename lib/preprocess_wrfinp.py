@@ -5,12 +5,11 @@ import datetime
 import numpy as np
 import xarray as xr
 import pandas as pd
-import gc
 import netCDF4 as nc4
 import wrf  
 from copy import copy
-from scipy import interpolate
-import sys
+import sys, os, subprocess
+
 sys.path.append('../')
 from utils import utils
 
@@ -59,21 +58,28 @@ class wrf_mesh:
     Methods
     '''
     
-    def __init__(self, cfg):
+    def __init__(self, cfg, call_from='training'):
         """ construct input wrf file names """
         
         utils.write_log(print_prefix+'Init wrf_mesh obj...')
         utils.write_log(print_prefix+'Read input files...')
         
         # collect global attr
-        self.dateseries=pd.date_range(start=cfg['TRAINING']['training_start'], end=cfg['TRAINING']['training_end'])
+        nc_fn_base='./input/'+call_from+'/'
+        if call_from=='training':
+            timestamp_start=datetime.datetime.strptime(cfg['TRAINING']['training_start']+'12','%Y%m%d%H')
+            timestamp_end=datetime.datetime.strptime(cfg['TRAINING']['training_end']+'12','%Y%m%d%H')
+            self.dateseries=pd.date_range(start=timestamp_start, end=timestamp_end, freq='D')
+        elif call_from=='inference':
+            fn_stream=subprocess.check_output('ls '+nc_fn_base, shell=True).decode('utf-8')
+            fn_list=fn_stream.split()
+            timestamp_start=datetime.datetime.strptime(fn_list[0][11:],'%Y-%m-%d_%H:%M:%S')
+            #timestamp_end=datetime.datetime.strptime(fn_list[3][11:],'%Y-%m-%d_%H:%M:%S')
+            timestamp_end=datetime.datetime.strptime(fn_list[-1][11:],'%Y-%m-%d_%H:%M:%S')
+            self.dateseries=pd.date_range(start=timestamp_start, end=timestamp_end, freq='H')
         self.ncfiles=[] 
         for datestamp in self.dateseries:
-            
-            yyyy=datestamp.strftime('%Y')
-            mm=datestamp.strftime('%m')
-            dd=datestamp.strftime('%d')
-            nc_fn='./input/training/wrfout_d01_'+yyyy+'-'+mm+'-'+dd+'_12:00:00'
+            nc_fn=nc_fn_base+'wrfout_d01_'+datestamp.strftime('%Y-%m-%d_%H:%M:%S')
             utils.write_log(print_prefix+'Read '+nc_fn)
             self.ncfiles.append(nc4.Dataset(nc_fn))
         
