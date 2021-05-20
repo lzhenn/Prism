@@ -34,7 +34,7 @@ class prism:
 
     '''
     
-    def __init__(self, wrf_hdl, cfg_hdl):
+    def __init__(self, wrf_hdl, cfg_hdl, call_from='trainning'):
         """ construct prism classifier """
         self.nrec=wrf_hdl.nrec
         nrow=self.nrow=wrf_hdl.nrow
@@ -44,16 +44,29 @@ class prism:
        
         self.dateseries=wrf_hdl.dateseries
 
-        raw_data=wrf_hdl.slp.values.reshape((self.nrec,-1))
-        
-        if cfg_hdl['TRAINING']['preprocess_method'] == 'temporal_norm':
-            self.data=utils.get_std_dim0(copy.copy(raw_data))
-        
-        self.n_types=int(cfg_hdl['TRAINING']['n_types'])
-        self.sigma=float(cfg_hdl['TRAINING']['sigma'])
-        self.lrate=float(cfg_hdl['TRAINING']['learning_rate'])
-        self.iterations=int(cfg_hdl['TRAINING']['iterations'])
-    
+        self.xlat, self.xlong=wrf_hdl.xlat, wrf_hdl.xlong
+        if call_from=='trainning':
+            raw_data=wrf_hdl.data.values.reshape((self.nrec,-1))
+            self.preprocess=cfg_hdl['TRAINING']['preprocess_method']
+            if self.preprocess == 'temporal_norm':
+                self.data, self.mean, self.std=utils.get_std_dim0(copy.copy(raw_data))
+            elif self.preprocess=='original':
+                self.data=raw_data
+
+            self.n_types=int(cfg_hdl['TRAINING']['n_types'])
+            self.sigma=float(cfg_hdl['TRAINING']['sigma'])
+            self.lrate=float(cfg_hdl['TRAINING']['learning_rate'])
+            self.iterations=int(cfg_hdl['TRAINING']['iterations'])
+        elif call_from=='inference':
+            db_in=xr.load_dataset('./db/som_cluster.nc')            
+            self.preprocess=db_in.attrs['preprocess_method']
+            if self.preprocess == 'temporal_norm':
+                mean, std = db_in['mean'], db_in['std']
+                self.data=wrf_hdl.data.values
+                for ii in range(0, self.nrec):
+                    self.data[ii,:,:]=(self.data[ii,:,:]-mean)/std
+                self.data=self.data.reshape((self.nrec,-1))
+
     def train(self):
         """ train the prism classifier """
         utils.write_log(print_prefix+'trainning...')
@@ -94,16 +107,48 @@ class prism:
 
         # archive classification result in netcdf
         centroid=self.som.get_weights()[0]
-        
         centroid=centroid.reshape(self.n_types, self.nrow, self.ncol)
-
-        ds_out= xr.Dataset(
-            {   
-                'som_cluster':(['ntype','nrow', 'ncol'], centroid),
-            },  
-        )   
+        
+        ds_out=self.org_output_nc(centroid)
+  
         out_fn='./db/som_cluster.nc'
         ds_out.to_netcdf(out_fn)
+
+
+
+    def org_output_nc(self, centroid):
+        """ organize output file """
+        if self.preprocess == 'temporal_norm':
+            self.mean=self.mean.reshape(self.nrow, self.ncol)
+            self.std=self.std.reshape(self.nrow, self.ncol)
+            ds_out= xr.Dataset(
+                data_vars={   
+                    'som_cluster':(['ntype','nrow', 'ncol'], centroid),
+                    'mean':(['nrow', 'ncol'], self.mean),
+                    'std':(['nrow', 'ncol'], self.std),
+                    'xlat':(['nrow', 'ncol'], self.xlat),
+                    'xlong':(['nrow', 'ncol'], self.xlong),
+                },  
+                coords={
+                    },
+                attrs={
+                    'preprocess_method':self.preprocess
+                    }
+            )  
+        elif self.preprocess=='original':
+            ds_out= xr.Dataset(
+                data_vars={   
+                    'som_cluster':(['ntype','nrow', 'ncol'], centroid),
+                    'xlat':(['nrow', 'ncol'], self.xlat),
+                    'xlong':(['nrow', 'ncol'], self.xlong),
+                },  
+                coords={
+                    },
+                attrs={
+                    'preprocess_method':self.preprocess
+                    }
+            )
+        return ds_out
 
 
     def load(self):

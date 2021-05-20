@@ -15,7 +15,7 @@ Zhenning LI
 
 import numpy as np
 import pandas as pd
-import os, logging
+import os, logging.config
 
 import lib 
 import core

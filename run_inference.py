@@ -41,7 +41,7 @@ def main_run():
         utils.write_log('Relink realtime pathwrf...')
         utils.link_realtime(cfg_hdl)
     wrf_hdl=lib.preprocess_wrfinp.wrf_mesh(cfg_hdl, 'inference') 
-    prism=core.prism.prism (wrf_hdl,cfg_hdl)
+    prism=core.prism.prism (wrf_hdl,cfg_hdl, 'inference')
     prism.cast() 
     print('*********************PRISM ACCOMPLISHED*********************')
 

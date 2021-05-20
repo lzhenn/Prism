@@ -75,6 +75,8 @@ def link_realtime(cfg):
 
 def get_std_dim0(data):
     """ standardize the series on the 0 dim """
-    data=(data-data.mean(axis=0))/data.std(axis=0)
-    return data
+    data_mean=data.mean(axis=0)
+    data_std=data.std(axis=0)
+    data=(data-data_mean)/data_std
+    return data, data_mean, data_std
 
