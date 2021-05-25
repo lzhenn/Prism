@@ -10,6 +10,7 @@ This is the main script to drive the model
 Revision:
 May 05, 2021 --- Architecture Design 
 May 17, 2021 --- MVP: training pipeline
+May 25, 2021 --- v0.10: Multivariable concatenation
 Zhenning LI
 '''
 
