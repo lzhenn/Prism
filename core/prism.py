@@ -16,7 +16,7 @@ from utils import utils
 import minisom
 import pickle
 
-print_prefix='core.aeolus>>'
+print_prefix='core.prism>>'
 
 class prism:
 
@@ -85,13 +85,13 @@ class prism:
         
         if self.preprocess == 'temporal_norm':
             self.data, self.mean, self.std=utils.get_std_dim0(self.data)
-
         
         # init som
         som = minisom.MiniSom(1, self.n_types, self.nvar*self.nfea, 
                 sigma=self.sigma, learning_rate=self.lrate) 
         
         train_data=self.data.reshape((self.nrec,-1))
+        
         # train som
         som.train(train_data, self.iterations, verbose=True) 
         
