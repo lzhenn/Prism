@@ -15,7 +15,7 @@ from utils import utils
 
 print_prefix='lib.preprocess_wrfinp>>'
 
-class wrf_mesh:
+class WrfMesh:
 
     '''
     Construct grid info and UVW mesh template
@@ -119,7 +119,7 @@ class wrf_mesh:
         self.data_dic = da_dic 
         self.varlist=varlist
         # shape
-        shp=self.data_dic['U10'].shape
+        shp=self.data_dic[varlist[0]].shape
         self.nrec=shp[0]
         self.nrow=shp[1]
         self.ncol=shp[2]

@@ -28,7 +28,7 @@ def main_run():
     print('*************************PRISM START*************************')
        
     # wall-clock ticks
-    time_mgr=lib.time_manager.time_manager()
+    time_mgr=lib.time_manager.TimeManager()
     
     # logging manager
     logging.config.fileConfig('./conf/logging_config.ini')
@@ -40,8 +40,8 @@ def main_run():
     if cfg_hdl['OTHER'].getboolean('relink_realtimewrf'):
         utils.write_log('Relink realtime pathwrf...')
         utils.link_realtime(cfg_hdl)
-    wrf_hdl=lib.preprocess_wrfinp.wrf_mesh(cfg_hdl, 'inference') 
-    prism=core.prism.prism (wrf_hdl,cfg_hdl, 'inference')
+    wrf_hdl=lib.preprocess_wrfinp.WrfMesh(cfg_hdl, 'inference') 
+    prism=core.prism.Prism(wrf_hdl,cfg_hdl, 'inference')
     prism.cast() 
     print('*********************PRISM ACCOMPLISHED*********************')
 

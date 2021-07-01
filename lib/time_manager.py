@@ -3,7 +3,7 @@
 
 import time
 
-class time_manager:
+class TimeManager:
     '''
     Time manager object to record execution time
     

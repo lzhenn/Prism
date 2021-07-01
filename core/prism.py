@@ -12,13 +12,19 @@ import xarray as xr
 import numpy as np
 import copy
 import sys, os
+import json
+
 from utils import utils
 import minisom
 import pickle
 
+# calculate metrics
+import sklearn.metrics as skm
+
+
 print_prefix='core.prism>>'
 
-class prism:
+class Prism:
 
     '''
     Aeolus interpolator, interpolate in-situ obvs onto wrf mesh 
@@ -40,7 +46,6 @@ class prism:
         nrow=self.nrow=wrf_hdl.nrow
         ncol=self.ncol=wrf_hdl.ncol
 
-        
         self.nfea=nrow*ncol 
         varlist=self.varlist=wrf_hdl.varlist 
         self.nvar=len(varlist)
@@ -57,7 +62,8 @@ class prism:
                 self.data[:,idx,:]=raw_data
                 
             self.preprocess=cfg_hdl['TRAINING']['preprocess_method']
-            self.n_types=int(cfg_hdl['TRAINING']['n_types'])
+            self.n_nodex=int(cfg_hdl['TRAINING']['n_nodex'])
+            self.n_nodey=int(cfg_hdl['TRAINING']['n_nodey'])
             self.sigma=float(cfg_hdl['TRAINING']['sigma'])
             self.lrate=float(cfg_hdl['TRAINING']['learning_rate'])
             self.iterations=int(cfg_hdl['TRAINING']['iterations'])
@@ -87,21 +93,20 @@ class prism:
             self.data, self.mean, self.std=utils.get_std_dim0(self.data)
         
         # init som
-        som = minisom.MiniSom(1, self.n_types, self.nvar*self.nfea, 
+        som = minisom.MiniSom(self.n_nodex, self.n_nodey, self.nvar*self.nfea, 
                 sigma=self.sigma, learning_rate=self.lrate) 
         
         train_data=self.data.reshape((self.nrec,-1))
         
         # train som
         som.train(train_data, self.iterations, verbose=True) 
-        
+
+        self.q_err=som.quantization_error(train_data)
+
         self.winners=[som.winner(x) for x in train_data]
-       
         self.som=som
 
-        # archive the model and clustered nodes
-        self.archive()
-
+        
     def cast(self):
         """ cast the prism on new synoptic maps """
         utils.write_log(print_prefix+'casting...')
@@ -112,12 +117,38 @@ class prism:
         winners=[self.som.winner(x) for x in train_data]
         with open('./output/inference_cluster.csv', 'w') as f:
             for datestamp, winner in zip(self.dateseries, winners):
-                f.write(datestamp.strftime('%Y-%m-%d_%H:%M:%S,')+str(winner[1])+'\n')
+                f.write(datestamp.strftime('%Y-%m-%d_%H:%M:%S,')+str(winner[0])+','+str(winner[1])+'\n')
 
         utils.write_log(print_prefix+'prism inference is completed!')
 
+    def evaluate(self,cfg):
+        """ evaluate the clustering result """
+        
+        utils.write_log(print_prefix+'prism evaluates...')
+        
+        edic={'quatization_error':self.q_err}
+        
+        train_data=self.data.reshape((self.nrec,-1))
+        label=[str(winner[0])+str(winner[1]) for winner in self.winners]
+        s_score=skm.silhouette_score(train_data, label, metric='euclidean')
+        
+        edic.update({'silhouette_score':s_score})
+        
+        utils.write_log(print_prefix+'prism evaluation dict:')
+        print(edic)
+
+        edic.update({'cfg_para':cfg._sections})
+        
+        self.edic=edic
+
     def archive(self):
         """ archive the prism classifier in database """
+
+        utils.write_log(print_prefix+'prism archives...')
+        
+        # archive evaluation dict
+        with open('./db/edic.json', 'w') as f:
+            json.dump(self.edic,f)
 
         # archive model
         with open('./db/som.archive', 'wb') as outfile:
@@ -126,16 +157,18 @@ class prism:
         # archive classification result in csv
         with open('./db/train_cluster.csv', 'w') as f:
             for datestamp, winner in zip(self.dateseries, self.winners):
-                f.write(datestamp.strftime('%Y-%m-%d_12:00:00,')+str(winner[1])+'\n')
+                f.write(datestamp.strftime('%Y-%m-%d_12:00:00,')+str(winner[0])+','+str(winner[1])+'\n')
 
         # archive classification result in netcdf
-        centroid=self.som.get_weights()[0]
-        centroid=centroid.reshape(self.n_types, self.nvar, self.nrow, self.ncol)
+        centroid=self.som.get_weights()
+        centroid=centroid.reshape(self.n_nodex, self.n_nodey, self.nvar, self.nrow, self.ncol)
         
         ds_out=self.org_output_nc(centroid)
   
         out_fn='./db/som_cluster.nc'
         ds_out.to_netcdf(out_fn)
+        
+        
         utils.write_log(print_prefix+'prism construction is completed!')
 
 
@@ -147,12 +180,13 @@ class prism:
             self.std=self.std.reshape(self.nvar, self.nrow, self.ncol)
             
             # reverse temporal_norm
-            for ii in range(0, self.n_types):
-                centroid[ii,:,:,:]=centroid[ii,:,:,:]*self.std+self.mean
+            for ii in range(0, self.n_nodex):
+                for jj in range(0, self.n_nodey):
+                    centroid[ii,jj,:,:,:]=centroid[ii,jj,:,:,:]*self.std+self.mean
             
             ds_out= xr.Dataset(
                 data_vars={   
-                    'som_cluster':(['ntype','nvar', 'nrow','ncol'], centroid),
+                    'som_cluster':(['n_nodex','n_nodey','nvar', 'nrow','ncol'], centroid),
                     'mean':(['nvar', 'nrow', 'ncol'], self.mean),
                     'std':(['nvar','nrow', 'ncol'], self.std),
                     'xlat':(['nrow', 'ncol'], self.xlat),
@@ -165,19 +199,6 @@ class prism:
                     'preprocess_method':self.preprocess
                     }
             )  
-        elif self.preprocess=='original':
-            ds_out= xr.Dataset(
-                data_vars={   
-                    'som_cluster':(['ntype','nrow', 'ncol'], centroid),
-                    'xlat':(['nrow', 'ncol'], self.xlat),
-                    'xlong':(['nrow', 'ncol'], self.xlong),
-                },  
-                coords={
-                    },
-                attrs={
-                    'preprocess_method':self.preprocess
-                    }
-            )
         return ds_out
 
 

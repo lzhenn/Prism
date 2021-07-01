@@ -21,28 +21,32 @@ import os, logging.config
 import lib 
 import core
 from utils import utils
-from multiprocessing import Pool, sharedctypes
 
 def main_run():
     
     print('*************************PRISM START*************************')
        
     # wall-clock ticks
-    time_mgr=lib.time_manager.time_manager()
+    time_mgr=lib.time_manager.TimeManager()
     
     # logging manager
     logging.config.fileConfig('./conf/logging_config.ini')
     
     utils.write_log('Read Config...')
     cfg_hdl=lib.cfgparser.read_cfg('./conf/config.ini')
-
     if cfg_hdl['OTHER'].getboolean('relink_pathwrf'):
         utils.write_log('Relink training pathwrf...')
         utils.link_path(cfg_hdl)
     
-    wrf_hdl=lib.preprocess_wrfinp.wrf_mesh(cfg_hdl)
-    prism=core.prism.prism(wrf_hdl,cfg_hdl)
+    wrf_hdl=lib.preprocess_wrfinp.WrfMesh(cfg_hdl)
+    
+    # initiate clusterer
+    prism=core.prism.Prism(wrf_hdl,cfg_hdl)
+    
     prism.train()
+    prism.evaluate(cfg_hdl)
+    prism.archive()
+
 
     print('*********************PRISM ACCOMPLISHED*********************')
 
