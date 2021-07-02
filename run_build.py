@@ -11,6 +11,8 @@ Revision:
 May 05, 2021 --- Architecture Design 
 May 17, 2021 --- MVP: training pipeline
 May 25, 2021 --- v0.10: Multivariable concatenation
+Jun  2, 2021 --- v0.90: Major pipelines 
+Jul  2, 2021 --- v0.95: Naming, evaluation, and 2-D topology 
 Zhenning LI
 '''
 
