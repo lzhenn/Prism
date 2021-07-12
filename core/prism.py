@@ -27,16 +27,16 @@ print_prefix='core.prism>>'
 class Prism:
 
     '''
-    Aeolus interpolator, interpolate in-situ obvs onto wrf mesh 
+    Prism clusterer, use wrf mesh variables 
     
     Attributes
     -----------
-    dis_mtx_u(n_sn, n_we_stag, n_obv), float, distance between obv and grid point, matrix on staggered u grid
 
     Methods
     -----------
-    train(), train the model by WRF data
-    cast(), cast on WRF data 
+    train(), train the model by historical WRF data
+    cast(), cast on real-time data 
+    evaluate(), evaluate the model performance by several metrics
 
     '''
     
@@ -67,7 +67,8 @@ class Prism:
             self.sigma=float(cfg_hdl['TRAINING']['sigma'])
             self.lrate=float(cfg_hdl['TRAINING']['learning_rate'])
             self.iterations=int(cfg_hdl['TRAINING']['iterations'])
-        
+            self.nb_func=cfg_hdl['TRAINING']['nb_func']
+
         elif call_from=='inference':
             db_in=xr.load_dataset('./db/som_cluster.nc')            
             self.preprocess=db_in.attrs['preprocess_method']
@@ -93,8 +94,10 @@ class Prism:
             self.data, self.mean, self.std=utils.get_std_dim0(self.data)
         
         # init som
-        som = minisom.MiniSom(self.n_nodex, self.n_nodey, self.nvar*self.nfea, 
-                sigma=self.sigma, learning_rate=self.lrate) 
+        som = minisom.MiniSom(
+                self.n_nodex, self.n_nodey, self.nvar*self.nfea, 
+                neighborhood_function=self.nb_func, sigma=self.sigma, 
+                learning_rate=self.lrate) 
         
         train_data=self.data.reshape((self.nrec,-1))
         
@@ -133,6 +136,7 @@ class Prism:
         s_score=skm.silhouette_score(train_data, label, metric='euclidean')
         
         edic.update({'silhouette_score':s_score})
+        
         
         utils.write_log(print_prefix+'prism evaluation dict:')
         print(edic)

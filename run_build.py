@@ -40,14 +40,17 @@ def main_run():
         utils.write_log('Relink training pathwrf...')
         utils.link_path(cfg_hdl)
     
+    
+    # init grid searcher for hyper-parameter optimazation
+    grid_searcher=lib.grid_searcher.GridSearcher(cfg_hdl)
+    
+    # init wrf handler and read training data
     wrf_hdl=lib.preprocess_wrfinp.WrfMesh(cfg_hdl)
     
     # initiate clusterer
     prism=core.prism.Prism(wrf_hdl,cfg_hdl)
-    
-    prism.train()
-    prism.evaluate(cfg_hdl)
-    prism.archive()
+
+    grid_searcher.search(cfg_hdl, prism)
 
 
     print('*********************PRISM ACCOMPLISHED*********************')
