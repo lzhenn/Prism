@@ -13,6 +13,8 @@ May 17, 2021 --- MVP: training pipeline
 May 25, 2021 --- v0.10: Multivariable concatenation
 Jun  2, 2021 --- v0.90: Major pipelines 
 Jul  2, 2021 --- v0.95: Naming, evaluation, and 2-D topology 
+Jul 12, 2021 --- v0.96: neighbourhood function and grid search module
+Jul   , 2021 --- v0.97: Multiprocessing in IO and grid search training
 Zhenning LI
 '''
 
@@ -36,6 +38,7 @@ def main_run():
     
     utils.write_log('Read Config...')
     cfg_hdl=lib.cfgparser.read_cfg('./conf/config.ini')
+    
     if cfg_hdl['OTHER'].getboolean('relink_pathwrf'):
         utils.write_log('Relink training pathwrf...')
         utils.link_path(cfg_hdl)
@@ -46,7 +49,6 @@ def main_run():
     
     # init wrf handler and read training data
     wrf_hdl=lib.preprocess_wrfinp.WrfMesh(cfg_hdl)
-    
     # initiate clusterer
     prism=core.prism.Prism(wrf_hdl,cfg_hdl)
 

@@ -69,9 +69,13 @@ class Prism:
             self.iterations=int(cfg_hdl['TRAINING']['iterations'])
             self.nb_func=cfg_hdl['TRAINING']['nb_func']
 
+            if self.preprocess == 'temporal_norm':
+                self.data, self.mean, self.std=utils.get_std_dim0(self.data)
+ 
         elif call_from=='inference':
             db_in=xr.load_dataset('./db/som_cluster.nc')            
             self.preprocess=db_in.attrs['preprocess_method']
+            self.nb_func=db_in.attrs['neighbourhood_function']
             
             # dispatch wrf_hdl.data
             for idx, var in enumerate(varlist):
@@ -89,10 +93,7 @@ class Prism:
     def train(self):
         """ train the prism classifier """
         utils.write_log(print_prefix+'trainning...')
-        
-        if self.preprocess == 'temporal_norm':
-            self.data, self.mean, self.std=utils.get_std_dim0(self.data)
-        
+       
         # init som
         som = minisom.MiniSom(
                 self.n_nodex, self.n_nodey, self.nvar*self.nfea, 
@@ -108,7 +109,6 @@ class Prism:
 
         self.winners=[som.winner(x) for x in train_data]
         self.som=som
-
         
     def cast(self):
         """ cast the prism on new synoptic maps """
@@ -200,7 +200,8 @@ class Prism:
                     'nvar':self.varlist
                     },
                 attrs={
-                    'preprocess_method':self.preprocess
+                    'preprocess_method':self.preprocess,
+                    'neighbourhood_function':self.nb_func
                     }
             )  
         return ds_out
