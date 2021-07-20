@@ -89,21 +89,25 @@ class Prism:
 
                 for ii in range(0, self.nrec):
                     self.data[ii,:,:]=(self.data[ii,:,:]-mean)/std
+        
+        self.data=self.data.reshape((self.nrec,-1))
 
-    def train(self):
+    def train(self, train_data=None, verbose=True):
         """ train the prism classifier """
-        utils.write_log(print_prefix+'trainning...')
-       
+        if verbose:
+            utils.write_log(print_prefix+'trainning...')
+        
+        if train_data is None:
+            train_data = self.data
+        
         # init som
         som = minisom.MiniSom(
                 self.n_nodex, self.n_nodey, self.nvar*self.nfea, 
                 neighborhood_function=self.nb_func, sigma=self.sigma, 
                 learning_rate=self.lrate) 
         
-        train_data=self.data.reshape((self.nrec,-1))
-        
         # train som
-        som.train(train_data, self.iterations, verbose=True) 
+        som.train(train_data, self.iterations, verbose=verbose) 
 
         self.q_err=som.quantization_error(train_data)
 
@@ -116,30 +120,30 @@ class Prism:
         self.load()
         
         # archive classification result in csv
-        train_data=self.data.reshape((self.nrec,-1))
-        winners=[self.som.winner(x) for x in train_data]
+        winners=[self.som.winner(x) for x in self.data]
         with open('./output/inference_cluster.csv', 'w') as f:
             for datestamp, winner in zip(self.dateseries, winners):
                 f.write(datestamp.strftime('%Y-%m-%d_%H:%M:%S,')+str(winner[0])+','+str(winner[1])+'\n')
 
         utils.write_log(print_prefix+'prism inference is completed!')
 
-    def evaluate(self,cfg):
+    def evaluate(self,cfg, train_data=None, verbose=True):
         """ evaluate the clustering result """
+        if verbose: 
+            utils.write_log(print_prefix+'prism evaluates...')
         
-        utils.write_log(print_prefix+'prism evaluates...')
+        if train_data is None:
+            train_data = self.data
         
         edic={'quatization_error':self.q_err}
         
-        train_data=self.data.reshape((self.nrec,-1))
         label=[str(winner[0])+str(winner[1]) for winner in self.winners]
         s_score=skm.silhouette_score(train_data, label, metric='euclidean')
         
         edic.update({'silhouette_score':s_score})
         
-        
-        utils.write_log(print_prefix+'prism evaluation dict:')
-        print(edic)
+        if verbose:
+            utils.write_log(print_prefix+'prism evaluation dict: %s' % str(edic))
 
         edic.update({'cfg_para':cfg._sections})
         
