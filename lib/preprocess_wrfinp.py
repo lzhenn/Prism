@@ -121,6 +121,7 @@ class WrfMesh:
         ncfile.close()
        
 
+        
         self.data_dic = da_dic 
         self.varlist=varlist
         # shape
@@ -176,7 +177,6 @@ def get_var_xr(ncfile, var):
         var_xr=wrf.interplevel(z, pres, 200).interpolate_na(dim='south_north',fill_value='extrapolate')
     else:
         var_xr=wrf.getvar(ncfile, var)
-    
     return var_xr
 
 

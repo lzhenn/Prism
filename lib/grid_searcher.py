@@ -42,6 +42,7 @@ class GridSearcher:
     
     def search(self, cfg, prism):
         """ search best hyper-parameter combination in space """
+        
         if self.gs_flag:
 
             best_score=-1
@@ -111,13 +112,15 @@ class GridSearcher:
         # execute for single run or for best grid search
         prism.train()
         prism.evaluate(cfg)
+
         if self.gs_flag:
             prism.edic.update({
                     'best_sigma':prism.sigma,
                     'best_lrate':prism.lrate,
                     'best_1dnodey':prism.n_nodey,
                     'best_nb_func':prism.nb_func
-                    })  
+                    }) 
+        # model archive
         prism.archive()
 
 def run_mtsk(itsk, comb, prism, cfg):

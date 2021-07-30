@@ -52,8 +52,8 @@ class Prism:
         self.dateseries=wrf_hdl.dateseries
 
         self.xlat, self.xlong=wrf_hdl.xlat, wrf_hdl.xlong
+        
         # self.data(recl, nvar, nrow*ncol)
-
         self.data=np.empty([self.nrec,self.nvar,nrow*ncol])
 
         if call_from=='trainning':
@@ -182,6 +182,15 @@ class Prism:
 
     def org_output_nc(self, centroid):
         """ organize output file """
+        ds_vars={   
+            'som_cluster':(['n_nodex','n_nodey','nvar', 'nrow','ncol'], centroid),
+            'xlat':(['nrow', 'ncol'], self.xlat),
+            'xlong':(['nrow', 'ncol'], self.xlong)}
+        
+        ds_coords={'nvar':self.varlist}
+        ds_attrs={
+            'preprocess_method':self.preprocess,
+            'neighbourhood_function':self.nb_func}
         
         if self.preprocess == 'temporal_norm':
             self.mean=self.mean.reshape(self.nvar, self.nrow, self.ncol)
@@ -191,23 +200,14 @@ class Prism:
             for ii in range(0, self.n_nodex):
                 for jj in range(0, self.n_nodey):
                     centroid[ii,jj,:,:,:]=centroid[ii,jj,:,:,:]*self.std+self.mean
-            
-            ds_out= xr.Dataset(
-                data_vars={   
-                    'som_cluster':(['n_nodex','n_nodey','nvar', 'nrow','ncol'], centroid),
-                    'mean':(['nvar', 'nrow', 'ncol'], self.mean),
-                    'std':(['nvar','nrow', 'ncol'], self.std),
-                    'xlat':(['nrow', 'ncol'], self.xlat),
-                    'xlong':(['nrow', 'ncol'], self.xlong),
-                },  
-                coords={
-                    'nvar':self.varlist
-                    },
-                attrs={
-                    'preprocess_method':self.preprocess,
-                    'neighbourhood_function':self.nb_func
-                    }
-            )  
+            ds_vars.update({
+                'mean':(['nvar', 'nrow', 'ncol'], self.mean),
+                'std':(['nvar','nrow', 'ncol'], self.std)}) 
+        
+        ds_out= xr.Dataset(
+            data_vars=ds_vars, coords=ds_coords,
+            attrs=ds_attrs) 
+
         return ds_out
 
 

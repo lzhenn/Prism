@@ -14,7 +14,7 @@ May 25, 2021 --- v0.10: Multivariable concatenation
 Jun  2, 2021 --- v0.90: Major pipelines 
 Jul  2, 2021 --- v0.95: Naming, evaluation, and 2-D topology 
 Jul 12, 2021 --- v0.96: neighbourhood function and grid search module
-Jul   , 2021 --- v0.97: Multiprocessing in IO and grid search training
+Jul 20, 2021 --- v0.97: Multiprocessing in IO and grid search training
 Zhenning LI
 '''
 
