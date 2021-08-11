@@ -2,17 +2,19 @@
 """Preprocessing the WRF input file"""
 
 import datetime
+import numpy as np
 import xarray as xr
 import pandas as pd
 import netCDF4 as nc4
 import wrf  
-import os, subprocess
+import os, subprocess, sys
 from multiprocessing import Pool
 
 import lib
 from utils import utils
 
 print_prefix='lib.preprocess_wrfinp>>'
+CWD=sys.path[0]
 
 class WrfMesh:
 
@@ -34,38 +36,64 @@ class WrfMesh:
         utils.write_log(print_prefix+'Read input files...')
         
         # collect global attr
-        self.nc_fn_base='./input/'+call_from+'/'
+        self.nc_fn_base=CWD+'/input/'+call_from+'/'
         self.ntasks=int(cfg['SHARE']['ntasks'])
         self.varlist=lib.cfgparser.cfg_get_varlist(cfg,'SHARE','var')
+        self.dsmp_interval=int(cfg['SHARE']['dsmp_interval'])
+
+        self.s_sn, self.e_sn = int(cfg['SHARE']['s_sn']),int(cfg['SHARE']['e_sn'])
+        self.s_we, self.e_we = int(cfg['SHARE']['s_we']),int(cfg['SHARE']['e_we'])
+
+        self.sn_range=np.arange(
+                self.s_sn, self.e_sn, self.dsmp_interval)
+
+        self.we_range=np.arange(
+                self.s_we, self.e_we, self.dsmp_interval)
 
         if call_from=='training':
             timestamp_start=datetime.datetime.strptime(cfg['TRAINING']['training_start']+'12','%Y%m%d%H')
             timestamp_end=datetime.datetime.strptime(cfg['TRAINING']['training_end']+'12','%Y%m%d%H')
-            self.dateseries=pd.date_range(start=timestamp_start, end=timestamp_end, freq='D')
+            all_dateseries=pd.date_range(start=timestamp_start, end=timestamp_end, freq='H')
+            self.dateseries=self._pick_date_frame(cfg, all_dateseries)
+
         elif call_from=='inference':
             fn_stream=subprocess.check_output('ls '+self.nc_fn_base+'wrfout*', shell=True).decode('utf-8')
             fn_list=fn_stream.split()
-            start_basename=fn_list[0].split('/')[3]
+            start_basename=fn_list[0].split('/')[-1]
             if cfg['INFERENCE'].getboolean('debug_mode'):
                 utils.write_log(print_prefix+'Debug mode turns on!')
-                end_basename=fn_list[self.ntasks-1].split('/')[3]
+                end_basename=fn_list[self.ntasks-1].split('/')[-1]
             else:
-                end_basename=fn_list[-1].split('/')[3]
+                end_basename=fn_list[-1].split('/')[-1]
             timestamp_start=datetime.datetime.strptime(start_basename[11:],'%Y-%m-%d_%H:%M:%S')
             timestamp_end=datetime.datetime.strptime(end_basename[11:],'%Y-%m-%d_%H:%M:%S')
             self.dateseries=pd.date_range(start=timestamp_start, end=timestamp_end, freq='H')
     
         self.load_data()
     
-    def load_data(self):
+    def _pick_date_frame(self, cfg, all_dates):
         
+        ''' 
+            pick date series list according to 
+            sub month and sub hrs
+        '''
+        subhr_list=lib.cfgparser.cfg_get_varlist(cfg,'TRAINING','sub_hrs')
+        submon_list=lib.cfgparser.cfg_get_varlist(cfg,'TRAINING','sub_mons')
+
+        sel_dates=all_dates[all_dates.hour.isin([int(subhr) for subhr in subhr_list])]
+        sel_dates=sel_dates[sel_dates.month.isin([int(submon) for submon in submon_list])]
+
+        return sel_dates
+
+
+    def load_data(self):
+        ''' load datasets '''
         nc_fn_base=self.nc_fn_base
         datestamp=self.dateseries[0] 
         varlist=self.varlist
         ntasks=self.ntasks
         da_dic={}
        
-        # -------read the rest files 
         # let's do the multiprocessing magic!
         utils.write_log(print_prefix+'Multiprocessing initiated. Master process %s.' % os.getpid())
         file_dates=self.dateseries
@@ -116,8 +144,14 @@ class WrfMesh:
         
         ncfile=nc4.Dataset(nc_fn)
         # lats lons on mass and staggered grids
-        self.xlat=wrf.getvar(ncfile,'XLAT')
-        self.xlong=wrf.getvar(ncfile,'XLONG')
+        self.xlat=wrf.getvar(ncfile,'XLAT').isel(
+                south_north=self.sn_range,
+                west_east=self.we_range)
+
+        self.xlong=wrf.getvar(ncfile,'XLONG').isel(
+                south_north=self.sn_range,
+                west_east=self.we_range)
+
         ncfile.close()
        
 
@@ -146,7 +180,10 @@ def run_mtsk(itsk, file_dates, da_dic, wrf_hdl):
     
     ncfile=nc4.Dataset(nc_fn)
     for var in varlist:
-            da_dic[var]=get_var_xr(ncfile,var)
+        var_temp=get_var_xr(ncfile,var)
+        da_dic[var]=var_temp.isel(
+                south_north=wrf_hdl.sn_range,
+                west_east=wrf_hdl.we_range)
     ncfile.close()
     
     # read the rest files in the list
@@ -158,7 +195,11 @@ def run_mtsk(itsk, file_dates, da_dic, wrf_hdl):
         ncfile=nc4.Dataset(nc_fn)
         
         for var in varlist:
-            da_dic[var]=xr.concat([da_dic[var],get_var_xr(ncfile,var)], dim='time')
+            var_temp=get_var_xr(ncfile,var)
+            var_temp=var_temp.isel(
+                south_north=wrf_hdl.sn_range,
+                west_east=wrf_hdl.we_range)
+            da_dic[var]=xr.concat([da_dic[var],var_temp], dim='time')
     
         ncfile.close()
     utils.write_log('%sTASK[%02d]: All files loaded.' % (print_prefix, itsk))

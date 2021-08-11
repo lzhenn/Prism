@@ -11,12 +11,13 @@
 
 """
 import datetime
-import os
+import os, sys
 import numpy as np
 import pandas as pd
 import logging
 
 DEG2RAD=np.pi/180.0
+CWD=sys.path[0]
 
 def throw_error(source, msg):
     '''
@@ -42,21 +43,37 @@ def write_log(msg, lvl=20):
 def link_path(cfg):
     """ link path wrfout to input dir """
     dateseries=pd.date_range(start=cfg['TRAINING']['training_start'], end=cfg['TRAINING']['training_end'])
-    for datestamp in dateseries:
+    len_date=len(dateseries)
+    for idx, datestamp in enumerate(dateseries):
+        
+        if idx % 100 ==0:
+            write_log('''wrfout_d01 relink done by %d/%d, 
+            please be patient, may take several minutes for long-term data...''' % (idx, len_date))
+
         yyyy=datestamp.strftime('%Y')
         mm=datestamp.strftime('%m')
         dd=datestamp.strftime('%d')
+        
+        datestamp_p1=datestamp+datetime.timedelta(days=1)
+        yyyy_p1=datestamp_p1.strftime('%Y')
+        mm_p1=datestamp_p1.strftime('%m')
+        dd_p1=datestamp_p1.strftime('%d')
 
         src_wrfpath=cfg['OTHER']['src_wrf']+yyyy
         src_wrfpath=src_wrfpath+'/'+yyyy+mm+'/'+yyyy+mm+dd+'12'
+        
         try:
-            os.system('ln -sf '+src_wrfpath+'/wrfout_d01_'+yyyy+'-'+mm+'-'+dd+'_12:00:00 ./input/training/')
+            os.system('ln -sf '+src_wrfpath+'/wrfout_d01_'+yyyy+'-'+mm+'-'+dd+'* '+CWD+'/input/training/')
+            os.system('ln -sf '+src_wrfpath+'/wrfout_d01_'+yyyy_p1+'-'+mm_p1+'-'+dd_p1+'_0* '+CWD+'/input/training/')
+            os.system('ln -sf '+src_wrfpath+'/wrfout_d01_'+yyyy_p1+'-'+mm_p1+'-'+dd_p1+'_11* '+CWD+'/input/training/')
         except:
             write_log('wrfout_d01_'+yyyy+'-'+mm+'-'+dd+'_12:00:00 not found',30)
 
 def link_realtime(cfg):
     """ link realtime wrfout to input dir """
     today=datetime.datetime.now()
+    offset_day=int(cfg['OTHER']['relink_realtime_offsetday'])
+    today=today-datetime.timedelta(days=offset_day)
     while 1:
         yyyy=today.strftime('%Y')
         mm=today.strftime('%m')
@@ -65,8 +82,8 @@ def link_realtime(cfg):
         src_wrfpath=src_wrfpath+'/'+yyyy+mm+'/'+yyyy+mm+dd+'12'
         # test if file exist
         if os.path.exists(src_wrfpath):
-            os.system('rm -f  ./input/inference/*')
-            os.system('ln -sf '+src_wrfpath+'/wrfout_d01* ./input/inference/')
+            os.system('rm -f  '+CWD+'/input/inference/*')
+            os.system('ln -sf '+src_wrfpath+'/wrfout_d01* '+CWD+'/input/inference/')
             write_log(src_wrfpath+' has been successfully linked!')
             break
         else:

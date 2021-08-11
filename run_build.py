@@ -15,17 +15,21 @@ Jun  2, 2021 --- v0.90: Major pipelines
 Jul  2, 2021 --- v0.95: Naming, evaluation, and 2-D topology 
 Jul 12, 2021 --- v0.96: neighbourhood function and grid search module
 Jul 20, 2021 --- v0.97: Multiprocessing in IO and grid search training
+Jul 30, 2021 --- v0.98: Major debug for eliminating mexican_hat neighbour func
+Aug 11, 2021 --- v0.99: Major features addition
+
 Zhenning LI
 '''
 
 import numpy as np
 import pandas as pd
-import os, logging.config
+import os, sys, logging.config
 
 import lib 
 import core
 from utils import utils
 
+CWD=sys.path[0]
 def main_run():
     
     print('*************************PRISM START*************************')
@@ -34,10 +38,10 @@ def main_run():
     time_mgr=lib.time_manager.TimeManager()
     
     # logging manager
-    logging.config.fileConfig('./conf/logging_config.ini')
+    logging.config.fileConfig(CWD+'/conf/logging_config.ini')
     
     utils.write_log('Read Config...')
-    cfg_hdl=lib.cfgparser.read_cfg('./conf/config.ini')
+    cfg_hdl=lib.cfgparser.read_cfg(CWD+'/conf/config.ini')
     
     if cfg_hdl['OTHER'].getboolean('relink_pathwrf'):
         utils.write_log('Relink training pathwrf...')

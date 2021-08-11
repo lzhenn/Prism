@@ -10,6 +10,7 @@ Core Component: Prism Classifier
 """
 import xarray as xr
 import numpy as np
+import pandas as pd
 import copy
 import sys, os
 import json
@@ -21,7 +22,7 @@ import pickle
 # calculate metrics
 import sklearn.metrics as skm
 
-
+CWD=sys.path[0]
 print_prefix='core.prism>>'
 
 class Prism:
@@ -73,10 +74,14 @@ class Prism:
                 self.data, self.mean, self.std=utils.get_std_dim0(self.data)
  
         elif call_from=='inference':
-            db_in=xr.load_dataset('./db/som_cluster.nc')            
+            db_in=xr.load_dataset(CWD+'/db/som_cluster.nc')            
+            
             self.preprocess=db_in.attrs['preprocess_method']
             self.nb_func=db_in.attrs['neighbourhood_function']
-            
+            self.n_nodex=db_in.dims['n_nodex']
+            self.n_nodey=db_in.dims['n_nodey']
+            self.resamp_frq=cfg_hdl['INFERENCE']['resamp_freq']
+
             # dispatch wrf_hdl.data
             for idx, var in enumerate(varlist):
                 raw_data=wrf_hdl.data_dic[var].values.reshape((self.nrec,-1))
@@ -121,10 +126,21 @@ class Prism:
         
         # archive classification result in csv
         winners=[self.som.winner(x) for x in self.data]
-        with open('./output/inference_cluster.csv', 'w') as f:
-            for datestamp, winner in zip(self.dateseries, winners):
-                f.write(datestamp.strftime('%Y-%m-%d_%H:%M:%S,')+str(winner[0])+','+str(winner[1])+'\n')
+        
+        data_list=[]
+        for datestamp, winner in zip(self.dateseries, winners):
+            data_list.append(
+                    ['('+str(winner[0])+','+str(winner[1])+')', 
+                    winner[0]*self.n_nodey+winner[1]])
+        
+        df_out = pd.DataFrame(
+                data_list, columns=['type2d_cor', 'type_id'],
+                index=self.dateseries)
 
+        df_out=df_out.resample(self.resamp_frq).apply(
+                lambda x: x.value_counts().index[0])
+        df_out.to_csv(CWD+'/output/inference_cluster.csv')
+        
         utils.write_log(print_prefix+'prism inference is completed!')
 
     def evaluate(self,cfg, train_data=None, verbose=True):
@@ -155,15 +171,15 @@ class Prism:
         utils.write_log(print_prefix+'prism archives...')
         
         # archive evaluation dict
-        with open('./db/edic.json', 'w') as f:
+        with open(CWD+'/db/edic.json', 'w') as f:
             json.dump(self.edic,f)
 
         # archive model
-        with open('./db/som.archive', 'wb') as outfile:
+        with open(CWD+'/db/som.archive', 'wb') as outfile:
             pickle.dump(self.som, outfile)
 
         # archive classification result in csv
-        with open('./db/train_cluster.csv', 'w') as f:
+        with open(CWD+'/db/train_cluster.csv', 'w') as f:
             for datestamp, winner in zip(self.dateseries, self.winners):
                 f.write(datestamp.strftime('%Y-%m-%d_12:00:00,')+str(winner[0])+','+str(winner[1])+'\n')
 
@@ -172,10 +188,8 @@ class Prism:
         centroid=centroid.reshape(self.n_nodex, self.n_nodey, self.nvar, self.nrow, self.ncol)
         
         ds_out=self.org_output_nc(centroid)
-  
-        out_fn='./db/som_cluster.nc'
+        out_fn=CWD+'/db/som_cluster.nc'
         ds_out.to_netcdf(out_fn)
-        
         
         utils.write_log(print_prefix+'prism construction is completed!')
 
@@ -184,6 +198,7 @@ class Prism:
         """ organize output file """
         ds_vars={   
             'som_cluster':(['n_nodex','n_nodey','nvar', 'nrow','ncol'], centroid),
+            'var_vector':(['ntimes','ngrids'], self.data),
             'xlat':(['nrow', 'ncol'], self.xlat),
             'xlong':(['nrow', 'ncol'], self.xlong)}
         
@@ -213,7 +228,7 @@ class Prism:
 
     def load(self):
         """ load the archived prism classifier in database """
-        with open('./db/som.archive', 'rb') as infile:
+        with open(CWD+'/db/som.archive', 'rb') as infile:
             self.som = pickle.load(infile)
 
 if __name__ == "__main__":

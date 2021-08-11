@@ -33,9 +33,9 @@ class GridSearcher:
             self.nworkers=int(cfg_hdl['GRID_SEARCH']['gs_nworkers'])
             self.gs_sigma=lib.cfgparser.cfg_get_varlist(cfg_hdl,'GRID_SEARCH','gs_sigma')
             self.gs_lr=lib.cfgparser.cfg_get_varlist(cfg_hdl,'GRID_SEARCH','gs_learning_rate')
-            self.gs_nodey=lib.cfgparser.cfg_get_varlist(cfg_hdl,'GRID_SEARCH','gs_1dnodey')
+            self.gs_nodexy=lib.cfgparser.cfg_get_varlist(cfg_hdl,'GRID_SEARCH','gs_nodexy')
             self.gs_nb_func=lib.cfgparser.cfg_get_varlist(cfg_hdl,'GRID_SEARCH','gs_nb_func')
-            self.gs_respl_int=lib.cfgparser.cfg_get_varlist(cfg_hdl,'GRID_SEARCH','gs_respl_int')
+            self.gs_iter=lib.cfgparser.cfg_get_varlist(cfg_hdl,'GRID_SEARCH','gs_iterations')
         else:
             utils.write_log(print_prefix+'Single hyper-para comb, no need grid search...')
 
@@ -46,12 +46,11 @@ class GridSearcher:
         if self.gs_flag:
 
             best_score=-1
-            prism.n_nodex=1
-
             # all possible combs            
             comb=list(itertools.product(
                 self.gs_sigma,self.gs_lr,
-                self.gs_nodey, self.gs_nb_func))
+                self.gs_nodexy, self.gs_nb_func,
+                self.gs_iter))
             num_comb=len(comb)
 
             utils.write_log(print_prefix+'Grid Search through '+str(num_comb)+' possible combinations...')
@@ -134,16 +133,22 @@ def run_mtsk(itsk, comb, prism, cfg):
     best_score=-1
 
     for idx, itms in enumerate(comb):
+        
         # assignment
         prism.sigma, prism.lrate=float(itms[0]), float(itms[1])
-        prism.n_nodey, prism.nb_func=int(itms[2]), itms[3]
-        
+        prism.nb_func=itms[3]
+        prism.n_nodex= int(itms[2].split('x')[0])
+        prism.n_nodey= int(itms[2].split('x')[1])
+        prism.iterations=int(itms[4])
+
         # debug output
         utils.write_log('%sTASK[%02d]: Grid Search round: %04d/%04d' % (
             print_prefix, itsk, idx+1, num_comb))
         utils.write_log('''%sTASK[%02d]: Grid Search para combinations:
-                 sigma=%s, lrate=%s, nodey=%s, nb_func=%s''' %(
-                    print_prefix, itsk, itms[0],itms[1], itms[2], itms[3]))
+                 sigma=%s, lrate=%s, nodexy=%s, 
+                 nb_func=%s, iterations=%s''' %(
+                    print_prefix, itsk, itms[0],itms[1], itms[2], 
+                    itms[3], itms[4]))
         
         # execute
         prism.train(train_data=train_data, verbose=False)
