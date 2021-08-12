@@ -80,6 +80,11 @@ class WrfMesh:
         subhr_list=lib.cfgparser.cfg_get_varlist(cfg,'TRAINING','sub_hrs')
         submon_list=lib.cfgparser.cfg_get_varlist(cfg,'TRAINING','sub_mons')
 
+        if subhr_list[0] == '-1':
+            subhr_list=range(0,24)
+        if submon_list[0]== '-1':
+            submon_list=range(1,13)
+
         sel_dates=all_dates[all_dates.hour.isin([int(subhr) for subhr in subhr_list])]
         sel_dates=sel_dates[sel_dates.month.isin([int(submon) for submon in submon_list])]
 

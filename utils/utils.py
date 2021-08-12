@@ -65,7 +65,7 @@ def link_path(cfg):
         try:
             os.system('ln -sf '+src_wrfpath+'/wrfout_d01_'+yyyy+'-'+mm+'-'+dd+'* '+CWD+'/input/training/')
             os.system('ln -sf '+src_wrfpath+'/wrfout_d01_'+yyyy_p1+'-'+mm_p1+'-'+dd_p1+'_0* '+CWD+'/input/training/')
-            os.system('ln -sf '+src_wrfpath+'/wrfout_d01_'+yyyy_p1+'-'+mm_p1+'-'+dd_p1+'_11* '+CWD+'/input/training/')
+            os.system('ln -sf '+src_wrfpath+'/wrfout_d01_'+yyyy_p1+'-'+mm_p1+'-'+dd_p1+'_1[0-1]* '+CWD+'/input/training/')
         except:
             write_log('wrfout_d01_'+yyyy+'-'+mm+'-'+dd+'_12:00:00 not found',30)
 
