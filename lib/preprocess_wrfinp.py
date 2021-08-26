@@ -51,13 +51,19 @@ class WrfMesh:
                 self.s_we, self.e_we, self.dsmp_interval)
 
         if call_from=='training':
-            timestamp_start=datetime.datetime.strptime(cfg['TRAINING']['training_start']+'12','%Y%m%d%H')
-            timestamp_end=datetime.datetime.strptime(cfg['TRAINING']['training_end']+'12','%Y%m%d%H')
-            all_dateseries=pd.date_range(start=timestamp_start, end=timestamp_end, freq='H')
+            
+            timestamp_start=datetime.datetime.strptime(
+                    cfg['TRAINING']['training_start']+'12','%Y%m%d%H')
+            timestamp_end=datetime.datetime.strptime(
+                    cfg['TRAINING']['training_end']+'12','%Y%m%d%H')
+            all_dateseries=pd.date_range(
+                    start=timestamp_start, end=timestamp_end, freq='H')
+
             self.dateseries=self._pick_date_frame(cfg, all_dateseries)
 
         elif call_from=='inference':
-            fn_stream=subprocess.check_output('ls '+self.nc_fn_base+'wrfout*', shell=True).decode('utf-8')
+            fn_stream=subprocess.check_output(
+                    'ls '+self.nc_fn_base+'wrfout*', shell=True).decode('utf-8')
             fn_list=fn_stream.split()
             start_basename=fn_list[0].split('/')[-1]
             if cfg['INFERENCE'].getboolean('debug_mode'):
@@ -223,6 +229,11 @@ def get_var_xr(ncfile, var):
         var_xr=wrf.interplevel(z, pres, 200).interpolate_na(dim='south_north',fill_value='extrapolate')
     else:
         var_xr=wrf.getvar(ncfile, var)
+    
+    # Aug 13, 2021 DEBUG: for dimension discontinuity 
+    # from 20151231 to 20160101
+    var_xr['XTIME']=''
+    
     return var_xr
 
 

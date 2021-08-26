@@ -17,6 +17,7 @@ Jul 12, 2021 --- v0.96: neighbourhood function and grid search module
 Jul 20, 2021 --- v0.97: Multiprocessing in IO and grid search training
 Jul 30, 2021 --- v0.98: Major debug for eliminating mexican_hat neighbour func
 Aug 11, 2021 --- v0.99: Major features addition
+Aug 26, 2021 --- v1.00: Major features addition: closest Euclidean Distance Match
 
 Zhenning LI
 '''

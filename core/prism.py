@@ -13,7 +13,7 @@ import numpy as np
 import pandas as pd
 import copy
 import sys, os
-import json
+import json, datetime
 
 from utils import utils
 import minisom
@@ -81,10 +81,17 @@ class Prism:
             self.n_nodex=db_in.dims['n_nodex']
             self.n_nodey=db_in.dims['n_nodey']
             self.resamp_frq=cfg_hdl['INFERENCE']['resamp_freq']
+            self.match_hist=cfg_hdl['INFERENCE'].getboolean('match_hist')
+    
+            if self.match_hist:
+                utils.write_log(print_prefix+'load history vectors...')
+                self.hist_data=db_in['var_vector']
+                self.hist_dateseries=db_in['ntimes']
 
             # dispatch wrf_hdl.data
             for idx, var in enumerate(varlist):
                 raw_data=wrf_hdl.data_dic[var].values.reshape((self.nrec,-1))
+                # self.data(recl, nvar, nrow*ncol)
                 self.data[:,idx,:]=raw_data
  
             if self.preprocess == 'temporal_norm':
@@ -94,7 +101,8 @@ class Prism:
 
                 for ii in range(0, self.nrec):
                     self.data[ii,:,:]=(self.data[ii,:,:]-mean)/std
-        
+
+        # self.data(recl, nvar*nrow*ncol=ngrids)            
         self.data=self.data.reshape((self.nrec,-1))
 
     def train(self, train_data=None, verbose=True):
@@ -124,21 +132,37 @@ class Prism:
         utils.write_log(print_prefix+'casting...')
         self.load()
         
-        # archive classification result in csv
+        data_list=[]
+        
+        # match clusters 
         winners=[self.som.winner(x) for x in self.data]
         
-        data_list=[]
-        for datestamp, winner in zip(self.dateseries, winners):
-            data_list.append(
-                    ['('+str(winner[0])+','+str(winner[1])+')', 
-                    winner[0]*self.n_nodey+winner[1]])
-        
-        df_out = pd.DataFrame(
-                data_list, columns=['type2d_cor', 'type_id'],
-                index=self.dateseries)
+        # match historical data
+        if self.match_hist:
+            self._match_hist()
+            
+            for datestamp, winner in zip(self.match_ts, winners):
+                data_list.append(
+                        ['('+str(winner[0])+','+str(winner[1])+')', 
+                        winner[0]*self.n_nodey+winner[1],datestamp])
+            
+            df_out = pd.DataFrame(
+                    data_list, columns=['type2d_cor', 'type_id', 'best_match'],
+                    index=self.dateseries)
+        else:
+            for winner in winners:
+                data_list.append(
+                        ['('+str(winner[0])+','+str(winner[1])+')', 
+                         winner[0]*self.n_nodey+winner[1]])
+                
+            df_out = pd.DataFrame(
+                    data_list, columns=['type2d_cor', 'type_id'],
+                    index=self.dateseries)
 
+        # resample output frequency
         df_out=df_out.resample(self.resamp_frq).apply(
                 lambda x: x.value_counts().index[0])
+
         df_out.to_csv(CWD+'/output/inference_cluster.csv')
         
         utils.write_log(print_prefix+'prism inference is completed!')
@@ -179,9 +203,18 @@ class Prism:
             pickle.dump(self.som, outfile)
 
         # archive classification result in csv
-        with open(CWD+'/db/train_cluster.csv', 'w') as f:
-            for datestamp, winner in zip(self.dateseries, self.winners):
-                f.write(datestamp.strftime('%Y-%m-%d_12:00:00,')+str(winner[0])+','+str(winner[1])+'\n')
+        data_list=[]
+
+        for winner in self.winners:
+            data_list.append(
+                    ['('+str(winner[0])+','+str(winner[1])+')', 
+                    winner[0]*self.n_nodey+winner[1]])
+        
+        df_out = pd.DataFrame(
+                data_list, columns=['type2d_cor', 'type_id'],
+                index=self.dateseries)
+
+        df_out.to_csv(CWD+'/db/train_cluster.csv')
 
         # archive classification result in netcdf
         centroid=self.som.get_weights()
@@ -197,16 +230,19 @@ class Prism:
     def org_output_nc(self, centroid):
         """ organize output file """
         ds_vars={   
-            'som_cluster':(['n_nodex','n_nodey','nvar', 'nrow','ncol'], centroid),
-            'var_vector':(['ntimes','ngrids'], self.data),
-            'xlat':(['nrow', 'ncol'], self.xlat),
-            'xlong':(['nrow', 'ncol'], self.xlong)}
-        
-        ds_coords={'nvar':self.varlist}
+                'som_cluster':(['n_nodex','n_nodey','nvar', 'nrow','ncol'], centroid),
+                'var_vector':(['ntimes','ngrids'], self.data),
+                'xlat':(['nrow', 'ncol'], self.xlat),
+                'xlong':(['nrow', 'ncol'], self.xlong)}
+            
+        ds_coords={
+                'nvar':self.varlist,
+                'ntimes':self.dateseries}
+
         ds_attrs={
-            'preprocess_method':self.preprocess,
-            'neighbourhood_function':self.nb_func}
-        
+                'preprocess_method':self.preprocess,
+                'neighbourhood_function':self.nb_func}
+            
         if self.preprocess == 'temporal_norm':
             self.mean=self.mean.reshape(self.nvar, self.nrow, self.ncol)
             self.std=self.std.reshape(self.nvar, self.nrow, self.ncol)
@@ -216,15 +252,42 @@ class Prism:
                 for jj in range(0, self.n_nodey):
                     centroid[ii,jj,:,:,:]=centroid[ii,jj,:,:,:]*self.std+self.mean
             ds_vars.update({
-                'mean':(['nvar', 'nrow', 'ncol'], self.mean),
-                'std':(['nvar','nrow', 'ncol'], self.std)}) 
-        
+                    'mean':(['nvar', 'nrow', 'ncol'], self.mean),
+                    'std':(['nvar','nrow', 'ncol'], self.std)}) 
+            
         ds_out= xr.Dataset(
             data_vars=ds_vars, coords=ds_coords,
             attrs=ds_attrs) 
 
         return ds_out
 
+    def _match_hist(self):
+        """ match current inference frame to historical vectors """
+        # match_arr(recl, nvar*nrow*ncol=ngrids)            
+        # hist_arr(ntimes, ngrids)
+        
+        self.match_ts=[]
+
+        match_arr=self.data
+        hist_arr=self.hist_data.values
+       
+        for curr_ts, curr_arr in zip(self.dateseries, match_arr):
+
+            utils.write_log(print_prefix+'match %s in hist vectors...' % 
+                    curr_ts.strftime('%Y-%m-%d:%HZ'))
+            
+            min_dis=np.linalg.norm(curr_arr-hist_arr[0,:])
+            min_time=self.hist_dateseries[0]
+
+            for datestamp, hist0_arr in zip(self.hist_dateseries, hist_arr):
+                curr_dis=np.linalg.norm(curr_arr-hist0_arr)
+                if (curr_dis<min_dis):
+                    min_dis=curr_dis
+                    min_time=datestamp.values
+            # convert to datetime obj
+            min_time=datetime.datetime.utcfromtimestamp(min_time.tolist()/1e9)
+            self.match_ts.append(min_time)
+        
 
     def load(self):
         """ load the archived prism classifier in database """

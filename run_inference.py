@@ -40,8 +40,11 @@ def main_run():
     if cfg_hdl['OTHER'].getboolean('relink_realtimewrf'):
         utils.write_log('Relink realtime pathwrf...')
         utils.link_realtime(cfg_hdl)
+    utils.write_log('Preprocess WRF...')
     wrf_hdl=lib.preprocess_wrfinp.WrfMesh(cfg_hdl, 'inference') 
+    utils.write_log('Construct Prism...')
     prism=core.prism.Prism(wrf_hdl,cfg_hdl, 'inference')
+    utils.write_log('Prism Cast...')
     prism.cast() 
     print('*********************PRISM ACCOMPLISHED*********************')
 
