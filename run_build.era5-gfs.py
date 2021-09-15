@@ -1,6 +1,6 @@
 #!/home/metctm1/array/soft/anaconda3/bin/python
 '''
-Date: May 05, 2021
+Date: Sep 05, 2021
 Prism is a SOM-based classifier to classify weather types 
 according to regional large-scale weather charts obtained
 from WRFOUT.
@@ -18,6 +18,7 @@ Jul 20, 2021 --- v0.97: Multiprocessing in IO and grid search training
 Jul 30, 2021 --- v0.98: Major debug for eliminating mexican_hat neighbour func
 Aug 11, 2021 --- v0.99: Major features addition
 Aug 26, 2021 --- v1.00: Major features addition: closest Euclidean Distance Match
+Sep 05, 2021 --- v1.10: Major features addition: ERA5-GFS pipeline 
 
 Zhenning LI
 '''
@@ -43,20 +44,16 @@ def main_run():
     logging.config.fileConfig(CWD+'/conf/logging_config.ini')
     
     utils.write_log('Read Config...')
-    cfg_hdl=lib.cfgparser.read_cfg(CWD+'/conf/config.ini')
+    cfg_hdl=lib.cfgparser.read_cfg(CWD+'/conf/config.era5-gfs.ini')
     
-    if cfg_hdl['OTHER'].getboolean('relink_pathwrf'):
-        utils.write_log('Relink training pathwrf...')
-        utils.link_path(cfg_hdl)
-    
-    
+   
     # init grid searcher for hyper-parameter optimazation
     grid_searcher=lib.grid_searcher.GridSearcher(cfg_hdl)
     
-    # init wrf handler and read training data
-    wrf_hdl=lib.preprocess_wrfinp.WrfMesh(cfg_hdl)
+    # init era handler and read training data
+    era_hdl=lib.preprocess_erainp.ERAMesh(cfg_hdl)
     # initiate clusterer
-    prism=core.prism.Prism(wrf_hdl,cfg_hdl)
+    prism=core.prism_era5_gfs.Prism(era_hdl,cfg_hdl)
 
     grid_searcher.search(cfg_hdl, prism)
 

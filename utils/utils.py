@@ -40,6 +40,34 @@ def write_log(msg, lvl=20):
 
     logging.log(lvl, msg)
 
+def down_gfs(cfg):
+    """ download gfs to archive dir """
+    lat_s=cfg['SHARE']['s_sn']
+    lat_n=cfg['SHARE']['e_sn']
+    lon_w=cfg['SHARE']['s_we']
+    lon_e=cfg['SHARE']['e_we']
+    gfs_src=cfg['INFERENCE']['gfs_src']
+    offset=int(cfg['INFERENCE']['realtime_offsetday'])
+    gfs_days=cfg['INFERENCE']['gfs_days']
+    gfs_init=cfg['INFERENCE']['gfs_init']
+    gfs_frq=cfg['INFERENCE']['gfs_frq']
+    
+    today=datetime.datetime.now()
+    today=today-datetime.timedelta(days=offset)
+    
+    os.system('sh ./gidgat/gfs_slicer.sh '+
+            gfs_src+' '+
+            today.strftime('%Y%m%d')+gfs_init+' '+
+            gfs_days+' '+
+            lon_w+' '+
+            lon_e+' '+
+            lat_n+' '+
+            lat_s+' '+
+            gfs_frq)
+
+    with open(gfs_src+'/init_time', 'w') as f:
+        f.write(today.strftime('%Y%m%d')+gfs_init)
+
 def link_path(cfg):
     """ link path wrfout to input dir """
     dateseries=pd.date_range(start=cfg['TRAINING']['training_start'], end=cfg['TRAINING']['training_end'])
